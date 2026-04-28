@@ -1,0 +1,1 @@
+@livewire('filament-quick-notes.quick-notes')

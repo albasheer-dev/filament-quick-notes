@@ -1,0 +1,42 @@
+{
+    "name": "rarq/filament-quick-notes",
+    "version": "1.0.0",
+    "description": "A FilamentPHP plugin that adds a personal sticky notes panel to your admin. Create, color-code, reorder and manage notes without leaving the page.",
+    "keywords": [
+        "laravel",
+        "filament",
+        "quick",
+        "notes",
+        "post-it",
+        "quick-notes",
+        "filamentphp",
+        "filament-plugin",
+        "filament-package"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Rodrigo Alfonso Ríos Quevedo",
+            "email": "rodrigoarq140599@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Rarq\\FilamentQuickNotes\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Rarq\\FilamentQuickNotes\\QuickNotesServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": "^8.1",
+        "filament/filament": "^3.0|^4.0|^5.0",
+        "spatie/laravel-package-tools": "^1.15.0"
+    }
+}
