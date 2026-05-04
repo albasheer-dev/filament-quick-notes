@@ -111,6 +111,8 @@ class QuickNotes extends Component
                 'color',
                 'order',
                 'is_pinned',
+                'is_docked',
+                'dock_order',
                 'position_x',
                 'position_y',
                 'width',
@@ -123,6 +125,8 @@ class QuickNotes extends Component
                 'color' => $n->color,
                 'order' => $n->order,
                 'is_pinned' => (bool) $n->is_pinned,
+                'is_docked' => (bool) $n->is_docked,
+                'dock_order' => $n->dock_order,
                 'position_x' => $n->position_x,
                 'position_y' => $n->position_y,
                 'width' => $n->width,
@@ -158,6 +162,8 @@ class QuickNotes extends Component
             'color' => 'yellow',
             'order' => 0,
             'is_pinned' => false,
+            'is_docked' => false,
+            'dock_order' => 0,
         ]);
 
         $this->loadNotes();
@@ -326,9 +332,15 @@ class QuickNotes extends Component
 
         $this->user()->filamentQuickNotes()
             ->where('id', $id)
-            ->update(array_merge($layout, ['is_pinned' => true]));
+            ->update(array_merge($layout, [
+                'is_pinned' => true,
+                'is_docked' => false,
+            ]));
 
-        $this->syncNote($id, array_merge($layout, ['is_pinned' => true]));
+        $this->syncNote($id, array_merge($layout, [
+            'is_pinned' => true,
+            'is_docked' => false,
+        ]));
 
         $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_pinned'));
     }
@@ -353,6 +365,110 @@ class QuickNotes extends Component
         $this->syncNote($id, ['is_pinned' => false]);
 
         $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_unpinned'));
+    }
+
+    /**
+     * Dock a note in the left rail and shift the page content.
+     *
+     * @param int|string $id
+     *
+     * @return void
+     */
+    public function dockNote(int|string $id): void
+    {
+        if (! is_int($id)) {
+            return;
+        }
+
+        $nextOrder = $this->nextDockOrder();
+
+        $this->user()->filamentQuickNotes()
+            ->where('id', $id)
+            ->update([
+                'is_docked' => true,
+                'dock_order' => $nextOrder,
+                'is_pinned' => false,
+            ]);
+
+        $this->syncNote($id, [
+            'is_docked' => true,
+            'dock_order' => $nextOrder,
+            'is_pinned' => false,
+        ]);
+
+        $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_docked'));
+    }
+
+    /**
+     * Remove a note from the dock rail.
+     *
+     * @param int|string $id
+     *
+     * @return void
+     */
+    public function undockNote(int|string $id): void
+    {
+        if (! is_int($id)) {
+            return;
+        }
+
+        $this->user()->filamentQuickNotes()
+            ->where('id', $id)
+            ->update([
+                'is_docked' => false,
+                'dock_order' => 0,
+            ]);
+
+        $this->syncNote($id, [
+            'is_docked' => false,
+            'dock_order' => 0,
+        ]);
+
+        $this->normalizeDockOrder();
+
+        $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_undocked'));
+    }
+
+    /**
+     * Move a docked note up or down within the rail.
+     *
+     * @param int|string $id
+     * @param string $direction
+     *
+     * @return void
+     */
+    public function moveDockedNote(int|string $id, string $direction): void
+    {
+        $dockedNotes = collect($this->notes)
+            ->filter(fn (array $note): bool => (bool) ($note['is_docked'] ?? false))
+            ->sortBy('dock_order')
+            ->values();
+
+        $idx = $dockedNotes->search(fn (array $note): bool => $note['id'] === $id);
+
+        if ($idx === false) {
+            return;
+        }
+
+        $newIdx = $direction === 'up' ? $idx - 1 : $idx + 1;
+
+        if ($newIdx < 0 || $newIdx >= $dockedNotes->count()) {
+            return;
+        }
+
+        [$dockedNotes[$idx], $dockedNotes[$newIdx]] = [$dockedNotes[$newIdx], $dockedNotes[$idx]];
+
+        $dockedNotes->values()->each(function (array $note, int $order): void {
+            if (! is_int($note['id'])) {
+                return;
+            }
+
+            $this->user()->filamentQuickNotes()
+                ->where('id', $note['id'])
+                ->update(['dock_order' => $order]);
+
+            $this->syncNote($note['id'], ['dock_order' => $order]);
+        });
     }
 
     /**
@@ -462,6 +578,38 @@ class QuickNotes extends Component
             })
             ->values()
             ->toArray();
+    }
+
+    /**
+     * @return int
+     */
+    private function nextDockOrder(): int
+    {
+        return collect($this->notes)
+            ->filter(fn (array $note): bool => (bool) ($note['is_docked'] ?? false))
+            ->max('dock_order') + 1;
+    }
+
+    /**
+     * @return void
+     */
+    private function normalizeDockOrder(): void
+    {
+        collect($this->notes)
+            ->filter(fn (array $note): bool => (bool) ($note['is_docked'] ?? false))
+            ->sortBy('dock_order')
+            ->values()
+            ->each(function (array $note, int $order): void {
+                if (! is_int($note['id'])) {
+                    return;
+                }
+
+                $this->user()->filamentQuickNotes()
+                    ->where('id', $note['id'])
+                    ->update(['dock_order' => $order]);
+
+                $this->syncNote($note['id'], ['dock_order' => $order]);
+            });
     }
 
     /**

@@ -33,6 +33,10 @@
             }
 
             this.cancelDelete();
+        },
+
+        toggleDockLayout(active) {
+            document.body.classList.toggle('fqn-has-dock', active);
         }
     }"
     x-on:quick-notes-toast.window="showToast($event.detail.message)"
@@ -44,10 +48,35 @@
 >
     @php
         $stickyNotes = array_values(array_filter($notes, static fn (array $note): bool => (bool) ($note['is_pinned'] ?? false)));
+        $dockedNotes = array_values(array_filter($notes, static fn (array $note): bool => (bool) ($note['is_docked'] ?? false)));
     @endphp
 
     @once
         <style>
+            :root {
+                --fqn-dock-width: 22rem;
+            }
+
+            body.fqn-has-dock .fi-main-ctn {
+                width: calc(100vw - var(--fqn-dock-width) - 1rem) !important;
+                max-width: calc(100vw - var(--fqn-dock-width) - 1rem) !important;
+                margin-left: calc(var(--fqn-dock-width) + 1rem);
+                transition: width .22s ease, margin-left .22s ease;
+            }
+
+            body.fqn-has-dock .fi-topbar nav,
+            body.fqn-has-dock .fi-main {
+                transition: width .22s ease, margin-left .22s ease;
+            }
+
+            @media (max-width: 1279px) {
+                body.fqn-has-dock .fi-main-ctn {
+                    width: 100vw !important;
+                    max-width: 100vw !important;
+                    margin-left: 0;
+                }
+            }
+
             .fqn-autosave-hint-row {
                 display: flex;
                 align-items: center;
@@ -88,6 +117,126 @@
                 inset: 0;
                 z-index: 9997;
                 pointer-events: none;
+            }
+
+            .fqn-dock-rail {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: var(--fqn-dock-width);
+                z-index: 18;
+                display: flex;
+                flex-direction: column;
+                background: linear-gradient(180deg, rgba(17, 24, 39, 0.96), rgba(12, 17, 28, 0.98));
+                border-right: 1px solid rgba(255, 255, 255, 0.08);
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+                overflow: hidden;
+                backdrop-filter: blur(12px);
+            }
+
+            .fqn-dock-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 16px 16px 12px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                color: #fff;
+            }
+
+            .fqn-dock-title {
+                font-family: var(--fqn-hand);
+                font-size: 24px;
+                font-weight: 700;
+                letter-spacing: .3px;
+            }
+
+            .fqn-dock-count {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 28px;
+                height: 28px;
+                padding: 0 10px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.08);
+                color: rgba(255, 255, 255, 0.84);
+                font-family: var(--fqn-body);
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .fqn-dock-list {
+                flex: 1;
+                overflow: auto;
+                padding: 14px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .fqn-dock-card {
+                border-radius: 18px;
+                overflow: hidden;
+                box-shadow: 0 16px 30px rgba(0, 0, 0, 0.24);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+            }
+
+            .fqn-dock-card-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 12px 14px 10px;
+                background: rgba(255, 255, 255, 0.18);
+                border-bottom: 1px dashed rgba(0, 0, 0, 0.16);
+            }
+
+            .fqn-dock-card-title {
+                min-width: 0;
+                font-family: var(--fqn-hand);
+                font-size: 20px;
+                font-weight: 700;
+                line-height: 1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .fqn-dock-card-body {
+                padding: 14px;
+                font-family: var(--fqn-hand);
+                font-size: 19px;
+                line-height: 1.5;
+                white-space: pre-wrap;
+                word-break: break-word;
+                min-height: 110px;
+                max-height: 36vh;
+                overflow: auto;
+            }
+
+            .fqn-dock-card-actions {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 10px 12px 12px;
+                background: rgba(255, 255, 255, 0.14);
+                border-top: 1px dashed rgba(0, 0, 0, 0.12);
+            }
+
+            .fqn-dock-order {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            @media (max-width: 1279px) {
+                .fqn-dock-rail {
+                    width: min(88vw, var(--fqn-dock-width));
+                    z-index: 45;
+                }
             }
 
             .fqn-sticky-note {
@@ -535,6 +684,68 @@
         </script>
     @endonce
 
+    <div x-init="toggleDockLayout({{ count($dockedNotes) > 0 ? 'true' : 'false' }})" x-effect="toggleDockLayout({{ count($dockedNotes) > 0 ? 'true' : 'false' }})"></div>
+
+    @if (count($dockedNotes))
+        <aside class="fqn-dock-rail" aria-label="{{ __('filament-quick-notes::translations.docked_notes') }}">
+            <div class="fqn-dock-header">
+                <span class="fqn-dock-title">{{ __('filament-quick-notes::translations.docked_notes') }}</span>
+                <span class="fqn-dock-count">{{ count($dockedNotes) }}</span>
+            </div>
+
+            <div class="fqn-dock-list">
+                @foreach (collect($dockedNotes)->sortBy('dock_order') as $note)
+                    @php
+                        $noteColor = collect($this->colors())->firstWhere('id', $note['color']) ?? $this->colors()[0];
+                        $noteIdJs = is_int($note['id']) ? $note['id'] : "'" . $note['id'] . "'";
+                    @endphp
+                    <section
+                        class="fqn-dock-card"
+                        wire:key="dock-note-{{ $note['id'] }}"
+                        style="background: {{ $noteColor['hex'] }}; color: {{ $noteColor['text'] }};"
+                    >
+                        <div class="fqn-dock-card-head">
+                            <span class="fqn-dock-card-title">{{ $note['title'] ?: __('filament-quick-notes::translations.untitled') }}</span>
+                            <span class="fqn-sticky-badge">{{ __('filament-quick-notes::translations.docked') }}</span>
+                        </div>
+
+                        <div class="fqn-dock-card-body">{{ filled($note['content']) ? $note['content'] : __('filament-quick-notes::translations.empty_note') }}</div>
+
+                        <div class="fqn-dock-card-actions">
+                            <div class="fqn-dock-order">
+                                <button type="button" class="fqn-icon-btn fqn-up-btn" wire:click="moveDockedNote({{ $noteIdJs }}, 'up')" title="{{ __('filament-quick-notes::translations.move_up') }}">
+                                    <x-heroicon-m-chevron-up class="fqn-icon-xs" aria-hidden="true" />
+                                </button>
+                                <button type="button" class="fqn-icon-btn fqn-down-btn" wire:click="moveDockedNote({{ $noteIdJs }}, 'down')" title="{{ __('filament-quick-notes::translations.move_down') }}">
+                                    <x-heroicon-m-chevron-down class="fqn-icon-xs" aria-hidden="true" />
+                                </button>
+                            </div>
+
+                            <div class="fqn-sticky-actions">
+                                <button
+                                    type="button"
+                                    class="fqn-sticky-btn"
+                                    x-on:click="$wire.selectNote({{ $noteIdJs }}); $wire.openModal()"
+                                    title="{{ __('filament-quick-notes::translations.open_in_editor') }}"
+                                >
+                                    <x-heroicon-o-pencil-square class="fqn-icon-xs" aria-hidden="true" />
+                                </button>
+                                <button
+                                    type="button"
+                                class="fqn-sticky-btn"
+                                wire:click="undockNote({{ $noteIdJs }})"
+                                title="{{ __('filament-quick-notes::translations.undock_note') }}"
+                            >
+                                <x-heroicon-o-arrow-left class="fqn-icon-xs" aria-hidden="true" />
+                            </button>
+                            </div>
+                        </div>
+                    </section>
+                @endforeach
+            </div>
+        </aside>
+    @endif
+
     @if (count($stickyNotes))
         <div class="fqn-sticky-stage" aria-live="polite">
             @foreach ($stickyNotes as $note)
@@ -575,6 +786,15 @@
                         </div>
                         <div class="fqn-sticky-actions">
                             <span class="fqn-sticky-badge">{{ __('filament-quick-notes::translations.pinned') }}</span>
+                            <button
+                                type="button"
+                                class="fqn-sticky-btn"
+                                data-fqn-action
+                                wire:click="dockNote({{ $noteIdJs }})"
+                                title="{{ __('filament-quick-notes::translations.dock_note') }}"
+                            >
+                                <x-heroicon-o-view-columns class="fqn-icon-xs" aria-hidden="true" />
+                            </button>
                             <button
                                 type="button"
                                 class="fqn-sticky-btn"
@@ -716,13 +936,22 @@
                                         <span>{{ __('filament-quick-notes::translations.autosave_hint') }}</span>
                                     </div>
                                     @if (is_int($activeId))
-                                        <button
-                                            type="button"
-                                            class="fqn-mini-pill {{ $isActivePinned ? 'active' : '' }}"
-                                            wire:click="{{ $isActivePinned ? 'unpinNote' : 'pinNote' }}({{ $activeId }})"
-                                        >
-                                            {{ $isActivePinned ? __('filament-quick-notes::translations.unpin_note') : __('filament-quick-notes::translations.pin_note') }}
-                                        </button>
+                                        <div class="fqn-sticky-actions">
+                                            <button
+                                                type="button"
+                                                class="fqn-mini-pill {{ $isActivePinned ? 'active' : '' }}"
+                                                wire:click="{{ $isActivePinned ? 'unpinNote' : 'pinNote' }}({{ $activeId }})"
+                                            >
+                                                {{ $isActivePinned ? __('filament-quick-notes::translations.unpin_note') : __('filament-quick-notes::translations.pin_note') }}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="fqn-mini-pill {{ (bool) ($activeNote['is_docked'] ?? false) ? 'active' : '' }}"
+                                                wire:click="{{ (bool) ($activeNote['is_docked'] ?? false) ? 'undockNote' : 'dockNote' }}({{ $activeId }})"
+                                            >
+                                                {{ (bool) ($activeNote['is_docked'] ?? false) ? __('filament-quick-notes::translations.undock_note') : __('filament-quick-notes::translations.dock_note') }}
+                                            </button>
+                                        </div>
                                     @endif
                                 </div>
                             </div>
@@ -779,6 +1008,13 @@
                                             wire:click="{{ ($note['is_pinned'] ?? false) ? 'unpinNote' : 'pinNote' }}({{ $noteIdJs }})"
                                         >
                                             {{ ($note['is_pinned'] ?? false) ? __('filament-quick-notes::translations.unpin_note') : __('filament-quick-notes::translations.pin_note') }}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="fqn-mini-pill {{ ($note['is_docked'] ?? false) ? 'active' : '' }}"
+                                            wire:click="{{ ($note['is_docked'] ?? false) ? 'undockNote' : 'dockNote' }}({{ $noteIdJs }})"
+                                        >
+                                            {{ ($note['is_docked'] ?? false) ? __('filament-quick-notes::translations.undock_note') : __('filament-quick-notes::translations.dock_note') }}
                                         </button>
                                         <div class="fqn-order-btns">
                                             <button class="fqn-icon-btn fqn-up-btn" wire:click="moveNote({{ $noteIdJs }}, 'up')" title="{{ __('filament-quick-notes::translations.move_up') }}">

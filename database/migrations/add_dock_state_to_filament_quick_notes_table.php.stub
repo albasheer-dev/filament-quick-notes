@@ -1,0 +1,44 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $tableName = config('filament-quick-notes.table_name', 'filament_quick_notes');
+
+        if (! Schema::hasTable($tableName)) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) use ($tableName) {
+            if (! Schema::hasColumn($tableName, 'is_docked')) {
+                $table->boolean('is_docked')->default(false)->after('is_pinned');
+            }
+
+            if (! Schema::hasColumn($tableName, 'dock_order')) {
+                $table->integer('dock_order')->default(0)->after('is_docked');
+            }
+        });
+    }
+
+    public function down(): void
+    {
+        $tableName = config('filament-quick-notes.table_name', 'filament_quick_notes');
+
+        if (! Schema::hasTable($tableName)) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) use ($tableName) {
+            foreach (['is_docked', 'dock_order'] as $column) {
+                if (Schema::hasColumn($tableName, $column)) {
+                    $table->dropColumn($column);
+                }
+            }
+        });
+    }
+};

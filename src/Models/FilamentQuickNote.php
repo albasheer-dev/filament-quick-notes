@@ -18,6 +18,8 @@ class FilamentQuickNote extends Model
         'color',
         'order',
         'is_pinned',
+        'is_docked',
+        'dock_order',
         'position_x',
         'position_y',
         'width',
@@ -29,6 +31,8 @@ class FilamentQuickNote extends Model
      */
     protected $casts = [
         'is_pinned' => 'boolean',
+        'is_docked' => 'boolean',
+        'dock_order' => 'integer',
         'position_x' => 'integer',
         'position_y' => 'integer',
         'width' => 'integer',
