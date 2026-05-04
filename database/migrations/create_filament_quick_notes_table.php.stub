@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create(config('filament-quick-notes.table_name', 'filament_quick_notes'), function (Blueprint $table) {
             $table->id();
-            $table->morphs('user');
+            $table->uuidMorphs('user');
             $table->string('title')->nullable();
             $table->text('content')->nullable();
             $table->string('color');
