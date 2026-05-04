@@ -109,6 +109,11 @@
                 resize: both;
                 border: 1px solid rgba(255, 255, 255, 0.24);
                 backdrop-filter: blur(4px);
+                will-change: left, top, width, height;
+            }
+
+            .fqn-sticky-note.is-dragging {
+                box-shadow: 0 30px 62px rgba(0, 0, 0, 0.42);
             }
 
             .fqn-sticky-header {
@@ -214,6 +219,12 @@
                 font-weight: 600;
                 opacity: 0.68;
             }
+
+            body.fqn-dragging-note,
+            body.fqn-dragging-note * {
+                user-select: none !important;
+                cursor: grabbing !important;
+            }
         </style>
         <script>
             window.fqnStickyNote = window.fqnStickyNote || function (config) {
@@ -262,10 +273,15 @@
                             return;
                         }
 
+                        clearTimeout(this.saveTimer);
                         this.dragging = true;
+                        this.$el.classList.add('is-dragging');
                         this.pointerOffsetX = event.clientX - this.x;
                         this.pointerOffsetY = event.clientY - this.y;
+                        document.body.classList.add('fqn-dragging-note');
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
                         event.preventDefault();
+                        event.stopPropagation();
                     },
 
                     move(event) {
@@ -284,7 +300,9 @@
                         }
 
                         this.dragging = false;
-                        this.queuePersist();
+                        this.$el.classList.remove('is-dragging');
+                        document.body.classList.remove('fqn-dragging-note');
+                        this.persist();
                     },
 
                     queuePersist() {
@@ -348,6 +366,7 @@
                 <section
                     class="fqn-sticky-note"
                     wire:key="sticky-note-{{ $note['id'] }}"
+                    wire:ignore.self
                     x-data="window.fqnStickyNote({
                         noteId: {{ (int) $note['id'] }},
                         x: {{ (int) ($note['position_x'] ?? 24) }},
@@ -389,9 +408,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="fqn-sticky-body">
-                        {{ $note['content'] ?: __('filament-quick-notes::translations.empty_note') }}
-                    </div>
+                    <div class="fqn-sticky-body">{{ filled($note['content']) ? $note['content'] : __('filament-quick-notes::translations.empty_note') }}</div>
                     <div class="fqn-sticky-footer">
                         <span>{{ __('filament-quick-notes::translations.drag_resize_hint') }}</span>
                     </div>
