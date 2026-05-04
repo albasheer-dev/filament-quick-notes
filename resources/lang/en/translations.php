@@ -7,7 +7,7 @@ return [
     'loading' => 'Loading',
     'autosave_enabled' => 'Auto-save enabled',
     'autosave_hint' => 'Your changes are saved automatically while you type.',
-    'drag_resize_hint' => 'Drag from the header and resize from the corner.',
+    'drag_resize_hint' => 'Drag from the header and resize from any edge or corner.',
     'save_changes' => 'Save changes',
     'saving' => 'Saving',
     'close' => 'Close',

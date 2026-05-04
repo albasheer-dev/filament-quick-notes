@@ -22,13 +22,13 @@ A FilamentPHP panel plugin that adds a persistent sticky-note system to your adm
 
 ## Features
 
-- 🗒️ Personal sticky notes per authenticated user
+- 🗒️ Personal notes per authenticated user
+- 💾 Auto-save while you type
+- 📌 Pin notes as floating sticky notes that stay visible across pages
+- 🧲 Dock selected notes into a persistent left rail
+- ↔️ Drag, resize, and reorder notes for your own workflow
 - 🎨 Multiple color choices for visual organization
-- 🔢 Manual reordering (move up / move down)
-- 💾 Staged editing — preview all changes before saving
-- ⚠️ Unsaved-changes guard when closing the panel
-- 🗑️ Styled confirmation sub-modals
-- 🧩 Polymorphic relation — works with any user model
+- 🧩 Polymorphic relation — works with numeric, UUID, or ULID user keys
 - 🌐 Multilingual support
 
 ## Compatibility
@@ -55,7 +55,14 @@ Run the install command:
 php artisan filament-quick-notes:install
 ```
 
-This will publish the config file, publish and run the migrations.
+This will publish the config file, publish the migrations, and optionally run them.
+
+If your authenticated user model uses UUID or ULID primary keys, publish the config, set `user_morph_key_type`, and then run the migration.
+If you use the install command above, simply answer `no` when it asks to run migrations, update the config, and then run:
+
+```bash
+php artisan migrate
+```
 
 ## Setup
 
@@ -128,6 +135,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | User morph key type
+    |--------------------------------------------------------------------------
+    |
+    | Determines which morph column type is used for the authenticated user
+    | relation in the package migration.
+    |
+    | Supported values:
+    |   - 'numeric' (default) => $table->morphs('user')
+    |   - 'uuid'              => $table->uuidMorphs('user')
+    |   - 'ulid'              => $table->ulidMorphs('user')
+    |
+    | If your authenticatable model uses UUID or ULID primary keys, set this
+    | value before running the package migration.
+    |
+    */
+    'user_morph_key_type' => 'numeric',
+
+    /*
+    |--------------------------------------------------------------------------
     | Quick Notes model
     |--------------------------------------------------------------------------
     |
@@ -168,12 +194,13 @@ FilamentQuickNotesPlugin::make()
 
 Notes are saved **per authenticated user** through a polymorphic relation, so the plugin works with any user model — including multi-tenancy setups where different models represent different user types.
 
-Editing follows a two-phase flow:
+Editing is auto-saved while the user types, so notes stay in sync without a separate save step.
 
-1. **Stage** — create or modify notes in the panel. Changes are held in memory and reflected in the list immediately, but not yet written to the database.
-2. **Save Changes** — a single button persists all staged changes at once. The button is disabled (and visually dimmed) when there is nothing pending.
+Users can also:
 
-If a user tries to close the panel with unsaved changes, a warning dialog intercepts the action and asks whether to continue editing or discard.
+1. **Pin** a note to keep it floating above the panel while they navigate.
+2. **Dock** selected notes into a left-side rail that keeps the note visible while freeing the main workspace.
+3. **Resize and drag** sticky notes to match the way they prefer to work.
 
 ## Contributing
 

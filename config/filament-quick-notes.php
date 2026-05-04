@@ -34,6 +34,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | User morph key type
+    |--------------------------------------------------------------------------
+    |
+    | Determines which morph column type is used for the authenticated user
+    | relation in the package migration.
+    |
+    | Supported values:
+    |   - 'numeric' (default) => $table->morphs('user')
+    |   - 'uuid'              => $table->uuidMorphs('user')
+    |   - 'ulid'              => $table->ulidMorphs('user')
+    |
+    | If your authenticatable model uses UUID or ULID primary keys, set this
+    | value before running the package migration.
+    |
+    */
+    'user_morph_key_type' => 'numeric',
+
+    /*
+    |--------------------------------------------------------------------------
     | Quick Notes model
     |--------------------------------------------------------------------------
     |

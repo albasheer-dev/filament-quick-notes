@@ -8,9 +8,17 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create(config('filament-quick-notes.table_name', 'filament_quick_notes'), function (Blueprint $table) {
+        $userMorphKeyType = strtolower((string) config('filament-quick-notes.user_morph_key_type', 'numeric'));
+
+        Schema::create(config('filament-quick-notes.table_name', 'filament_quick_notes'), function (Blueprint $table) use ($userMorphKeyType) {
             $table->id();
-            $table->uuidMorphs('user');
+
+            match ($userMorphKeyType) {
+                'uuid' => $table->uuidMorphs('user'),
+                'ulid' => $table->ulidMorphs('user'),
+                default => $table->morphs('user'),
+            };
+
             $table->string('title')->nullable();
             $table->text('content')->nullable();
             $table->string('color');
