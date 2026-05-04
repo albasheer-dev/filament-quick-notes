@@ -2,8 +2,8 @@
 
 namespace Rarq\FilamentQuickNotes\Livewire;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Livewire\Component;
 use Rarq\FilamentQuickNotes\Enums\DeletionType;
@@ -55,11 +55,6 @@ class QuickNotes extends Component
     public bool $editorOpen = false;
 
     /**
-     * @var bool
-     */
-    public bool $hasPendingChanges = false;
-
-    /**
      * Returns the full color palette.
      *
      * @return array<int, array{id: string, label: string, hex: string, text: string}>
@@ -67,6 +62,11 @@ class QuickNotes extends Component
     public function colors(): array
     {
         return FilamentQuickNote::availableColors();
+    }
+
+    public function mount(): void
+    {
+        $this->loadNotes();
     }
 
     // ─── Modal ─────────────────────────────────────────────────────────────────
@@ -91,7 +91,6 @@ class QuickNotes extends Component
     {
         $this->open = false;
         $this->editorOpen = false;
-        $this->hasPendingChanges = false;
         $this->resetEditor();
     }
 
@@ -102,10 +101,7 @@ class QuickNotes extends Component
      */
     private function loadNotes(): void
     {
-        /** @var \Illuminate\Database\Eloquent\Model $user */
-        $user = Auth::user();
-
-        $this->notes = $user
+        $this->notes = $this->user()
             ->filamentQuickNotes()
             ->orderBy('order')
             ->get(['id', 'title', 'content', 'color', 'order'])
@@ -121,36 +117,39 @@ class QuickNotes extends Component
     }
 
     /**
+     * @return Model
+     */
+    private function user(): Model
+    {
+        /** @var Model $user */
+        $user = Auth::user();
+
+        return $user;
+    }
+
+    /**
      * Open the editor with empty fields for creating a new note.
      * 
      * @return void
      */
     public function newNote(): void
     {
-        $tempId = Str::uuid()->toString();
-        $defaultTitle = __('filament-quick-notes::translations.untitled');
+        $this->user()->filamentQuickNotes()->increment('order');
 
-        // Prepend to the list so it appears at the top right away
-        $this->notes = array_merge(
-            [[
-                'id' => $tempId,
-                'title' => $defaultTitle,
-                'content' => '',
-                'color' => 'yellow',
-                'order' => 0
-            ]],
-            $this->notes
-        );
+        $note = $this->user()->filamentQuickNotes()->create([
+            'title' => null,
+            'content' => null,
+            'color' => 'yellow',
+            'order' => 0,
+        ]);
 
-        // Open it in the editor with clean fields
-        $this->activeId = $tempId;
-        $this->title = ''; // empty so the placeholder shows
+        $this->loadNotes();
+
+        $this->activeId = $note->id;
+        $this->title = '';
         $this->content = '';
         $this->color = 'yellow';
         $this->editorOpen = true;
-
-        // New unsaved note → pending changes immediately
-        $this->hasPendingChanges = true;
     }
 
 
@@ -170,8 +169,8 @@ class QuickNotes extends Component
         }
 
         $this->activeId = $note['id'];
-        $this->title = $note['title'];
-        $this->content = $note['content'];
+        $this->title = $note['title'] ?? '';
+        $this->content = $note['content'] ?? '';
         $this->color = $note['color'];
         $this->editorOpen = true;
     }
@@ -191,99 +190,67 @@ class QuickNotes extends Component
     }
 
     /**
-     * Stage a note in the local $notes array (no DB hit yet).
-     * The user still needs to click "Save Changes" to persist permanently.
-     * 
+     * Auto-save the currently active note when an editor field changes.
+     *
      * @return void
      */
-    public function stageNote(): void
+    public function updatedTitle(): void
     {
-        $title = trim($this->title) ?: __('filament-quick-notes::translations.untitled');
-        $content = trim($this->content);
-        $color = $this->color;
-
-        if ($this->activeId !== null) {
-            $this->notes = collect($this->notes)
-                ->map(function (array $n) use ($title, $content, $color): array {
-                    if ($n['id'] === $this->activeId) {
-                        return array_merge($n, compact('title', 'content', 'color'));
-                    }
-                    return $n;
-                })
-                ->toArray();
-        } else {
-            $tempId = Str::uuid()->toString();
-            $this->notes = array_merge(
-                [[
-                    'id' => $tempId,
-                    'title' => $title,
-                    'content' => $content,
-                    'color' => $color,
-                    'order' => 0,
-                ]],
-                $this->notes
-            );
-            $this->activeId = $tempId;
-        }
-
-        $this->hasPendingChanges = true;
-
-        $this->resetEditor();
-        $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_staged'));
+        $this->persistActiveNote();
     }
 
     /**
-     * Persist ALL staged notes to the database.
-     * 
      * @return void
      */
-    public function saveChanges(): void
+    public function updatedContent(): void
     {
-        /** @var \Illuminate\Database\Eloquent\Model $user */
-        $user = Auth::user();
+        $this->persistActiveNote();
+    }
 
-        $persistedIds = $user->filamentQuickNotes()->pluck('id')->toArray();
+    /**
+     * @return void
+     */
+    public function updatedColor(): void
+    {
+        $this->persistActiveNote();
+    }
 
-        $stagedPersistedIds = collect($this->notes)
-            ->filter(fn(array $n): bool => is_int($n['id']))
-            ->pluck('id')
+    /**
+     * Persist the active note to the database immediately.
+     *
+     * @return void
+     */
+    private function persistActiveNote(): void
+    {
+        if (! is_int($this->activeId)) {
+            return;
+        }
+
+        $title = blank(trim($this->title)) ? null : trim($this->title);
+        $content = blank(trim((string) $this->content)) ? null : $this->content;
+        $color = $this->color;
+
+        $this->user()->filamentQuickNotes()
+            ->where('id', $this->activeId)
+            ->update([
+                'title' => $title,
+                'content' => $content,
+                'color' => $color,
+            ]);
+
+        $this->notes = collect($this->notes)
+            ->map(function (array $note) use ($title, $content, $color): array {
+                if ($note['id'] !== $this->activeId) {
+                    return $note;
+                }
+
+                return array_merge($note, [
+                    'title' => $title,
+                    'content' => $content,
+                    'color' => $color,
+                ]);
+            })
             ->toArray();
-
-        $toDelete = array_diff($persistedIds, $stagedPersistedIds);
-        if ($toDelete) {
-            config('filament-quick-notes.deletion_type') === DeletionType::SOFT
-                ? $user->filamentQuickNotes()->whereIn('id', $toDelete)->delete()
-                : $user->filamentQuickNotes()->whereIn('id', $toDelete)->forceDelete();
-        }
-
-        foreach ($this->notes as $order => $note) {
-            $isNew = ! is_int($note['id']);
-
-            if ($isNew) {
-                $created = $user->filamentQuickNotes()
-                    ->create([
-                        'title' => $note['title'],
-                        'content' => $note['content'],
-                        'color' => $note['color'],
-                        'order' => $order
-                    ]);
-                $this->notes[$order]['id'] = $created->id;
-            } else {
-                $user->filamentQuickNotes()
-                    ->where('id', $note['id'])
-                    ->update([
-                        'title' => $note['title'],
-                        'content' => $note['content'],
-                        'color' => $note['color'],
-                        'order' => $order
-                    ]);
-            }
-        }
-
-        $this->hasPendingChanges = false;
-
-        $this->closeModal();
-        $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.changes_saved'));
     }
 
     /**
@@ -295,16 +262,20 @@ class QuickNotes extends Component
      */
     public function deleteNote(int|string $id): void
     {
-        $this->notes = collect($this->notes)
-            ->filter(fn(array $n): bool => $n['id'] !== $id)
-            ->values()
-            ->toArray();
+        if (is_int($id)) {
+            $query = $this->user()->filamentQuickNotes()->where('id', $id);
+
+            config('filament-quick-notes.deletion_type') === DeletionType::SOFT
+                ? $query->delete()
+                : $query->forceDelete();
+        }
 
         if ($this->activeId === $id) {
             $this->resetEditor();
         }
 
-        $this->hasPendingChanges = true;
+        $this->loadNotes();
+        $this->persistOrder();
 
         $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_deleted'));
     }
@@ -335,18 +306,27 @@ class QuickNotes extends Component
         [$notes[$idx], $notes[$newIdx]] = [$notes[$newIdx], $notes[$idx]];
 
         $this->notes = $notes->values()->toArray();
-
-        $this->hasPendingChanges = true;
+        $this->persistOrder();
     }
 
     /**
-     * Discard the current editor state without saving.
-     * 
+     * Persist the current in-memory note order to the database.
+     *
      * @return void
      */
-    public function discardEditor(): void
+    private function persistOrder(): void
     {
-        $this->resetEditor();
+        foreach ($this->notes as $order => $note) {
+            if (! is_int($note['id'])) {
+                continue;
+            }
+
+            $this->user()->filamentQuickNotes()
+                ->where('id', $note['id'])
+                ->update(['order' => $order]);
+        }
+
+        $this->loadNotes();
     }
 
     /**

@@ -9,31 +9,11 @@
         confirmNoteId: null,
         confirmNoteTitle: '',
 
-        /* ── Unsaved-changes warning ── */
-        warnOpen: false,
-
         showToast(msg) {
             this.toastMsg = msg;
             this.toastVisible = true;
             clearTimeout(this.toastTimer);
             this.toastTimer = setTimeout(() => this.toastVisible = false, 2400);
-        },
-
-        askClose() {
-            if ($wire.hasPendingChanges) {
-                this.warnOpen = true;
-            } else {
-                $wire.closeModal();
-            }
-        },
-
-        cancelClose() {
-            this.warnOpen = false;
-        },
-
-        confirmClose() {
-            this.warnOpen = false;
-            $wire.closeModal();
         },
 
         askDelete(id, title) {
@@ -58,8 +38,7 @@
     x-on:quick-notes-toast.window="showToast($event.detail.message)"
     x-on:keydown.escape.window="
         if (confirmOpen) { cancelDelete(); }
-        else if (warnOpen) { cancelClose(); }
-        else { askClose(); }
+        else { $wire.closeModal(); }
     "
     class="fqn-root">
 
@@ -83,7 +62,7 @@
         x-transition:enter="fqn-backdrop-enter"
         x-transition:enter-start="fqn-backdrop-enter-start"
         x-transition:enter-end="fqn-backdrop-enter-end"
-        x-on:click.self="askClose()"
+        x-on:click.self="$wire.closeModal()"
         style="display:none">
         <div
             class="fqn-modal"
@@ -102,21 +81,12 @@
                     {{ __('filament-quick-notes::translations.my_notes') }}
                 </div>
                 <div class="fqn-header-actions">
+                    <div class="fqn-autosave-badge">
+                        <x-heroicon-c-bolt class="fqn-btn-sm-icon" aria-hidden="true" />
+                        <span>{{ __('filament-quick-notes::translations.autosave_enabled') }}</span>
+                    </div>
                     <button
-                        wire:click="saveChanges"
-                        wire:loading.attr="disabled"
-                        x-bind:disabled="!$wire.hasPendingChanges"
-                        x-bind:class="$wire.hasPendingChanges
-                            ? 'fqn-save-changes-btn fqn-save-changes-btn--active'
-                            : 'fqn-save-changes-btn fqn-save-changes-btn--idle'"
-                        title="{{ __('filament-quick-notes::translations.save_changes') }}">
-                        <span class="fqn-pending-dot" x-show="$wire.hasPendingChanges" style="display:none" aria-hidden="true"></span>
-                        <x-heroicon-c-cloud-arrow-up class="fqn-btn-sm-icon" aria-hidden="true" />
-                        <span wire:loading.remove wire:target="saveChanges">{{ __('filament-quick-notes::translations.save_changes') }}</span>
-                        <span wire:loading wire:target="saveChanges">{{ __('filament-quick-notes::translations.saving') }}…</span>
-                    </button>
-                    <button
-                        x-on:click="askClose()"
+                        x-on:click="$wire.closeModal()"
                         class="fqn-close-btn"
                         title="{{ __('filament-quick-notes::translations.close') }}"
                         aria-label="{{ __('filament-quick-notes::translations.close') }}">
@@ -160,28 +130,22 @@
                             <div class="fqn-posit-header">
                                 <input
                                     type="text"
-                                    wire:model="title"
+                                    wire:model.live.debounce.500ms="title"
                                     class="fqn-posit-title-input"
                                     placeholder="{{ __('filament-quick-notes::translations.note_title_placeholder') }}"
                                     maxlength="60"
                                     style="color: {{ $currentColor['text'] }};">
                             </div>
                             <textarea
-                                wire:model="content"
+                                wire:model.live.debounce.700ms="content"
                                 class="fqn-posit-content-input"
                                 placeholder="{{ __('filament-quick-notes::translations.note_content_placeholder') }}"
                                 style="color: {{ $currentColor['text'] }};"></textarea>
                             <div class="fqn-posit-fold" aria-hidden="true"></div>
                         </div>
-                        <div class="fqn-save-row">
-                            <button wire:click="stageNote" class="fqn-save-btn">
-                                <x-heroicon-s-bookmark class="fqn-btn-sm-icon" aria-hidden="true" />
-                                {{ __('filament-quick-notes::translations.save_note') }}
-                            </button>
-                            <button wire:click="discardEditor" class="fqn-discard-btn">
-                                <x-heroicon-o-x-circle class="fqn-btn-sm-icon" aria-hidden="true" />
-                                {{ __('filament-quick-notes::translations.discard') }}
-                            </button>
+                        <div class="fqn-autosave-hint">
+                            <x-heroicon-o-check-badge class="fqn-btn-sm-icon" aria-hidden="true" />
+                            <span>{{ __('filament-quick-notes::translations.autosave_hint') }}</span>
                         </div>
                     </div>
                     @endif
@@ -294,47 +258,6 @@
                         <button class="fqn-confirm-delete-btn" x-on:click="confirmDelete()">
                             <x-heroicon-m-trash class="fqn-btn-sm-icon" aria-hidden="true" />
                             {{ __('filament-quick-notes::translations.delete_confirm') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Sub-modal: Unsaved changes --}}
-            <div
-                class="fqn-confirm-backdrop"
-                x-show="warnOpen"
-                x-transition:enter="fqn-confirm-enter"
-                x-transition:enter-start="fqn-confirm-enter-start"
-                x-transition:enter-end="fqn-confirm-enter-end"
-                x-transition:leave="fqn-confirm-leave"
-                x-transition:leave-start="fqn-confirm-leave-start"
-                x-transition:leave-end="fqn-confirm-leave-end"
-                x-on:click.self="cancelClose()"
-                style="display:none"
-                role="alertdialog"
-                aria-modal="true">
-                <div
-                    class="fqn-confirm-box fqn-warn-box"
-                    x-show="warnOpen"
-                    x-transition:enter="fqn-confirm-box-enter"
-                    x-transition:enter-start="fqn-confirm-box-enter-start"
-                    x-transition:enter-end="fqn-confirm-box-enter-end"
-                    x-transition:leave="fqn-confirm-box-leave"
-                    x-transition:leave-start="fqn-confirm-box-leave-start"
-                    x-transition:leave-end="fqn-confirm-box-leave-end">
-                    <div class="fqn-confirm-icon-wrap fqn-warn-icon-wrap" aria-hidden="true">
-                        <x-heroicon-s-exclamation-triangle class="fqn-confirm-icon fqn-warn-icon" />
-                    </div>
-                    <div class="fqn-confirm-title">{{ __('filament-quick-notes::translations.warn_unsaved_title') }}</div>
-                    <p class="fqn-confirm-body">{{ __('filament-quick-notes::translations.warn_unsaved_body') }}</p>
-                    <div class="fqn-confirm-actions">
-                        <button class="fqn-warn-stay-btn" x-on:click="cancelClose()">
-                            <x-heroicon-m-arrow-left class="fqn-btn-sm-icon" aria-hidden="true" />
-                            {{ __('filament-quick-notes::translations.warn_stay') }}
-                        </button>
-                        <button class="fqn-warn-discard-btn" x-on:click="confirmClose()">
-                            <x-heroicon-m-x-mark class="fqn-btn-sm-icon" aria-hidden="true" />
-                            {{ __('filament-quick-notes::translations.warn_discard') }}
                         </button>
                     </div>
                 </div>

@@ -4,6 +4,8 @@ return [
     'open_notes' => 'ملاحظاتي',
     'my_notes' => 'ملاحظاتي',
     'loading' => 'جار التحميل',
+    'autosave_enabled' => 'الحفظ التلقائي مفعل',
+    'autosave_hint' => 'يتم حفظ التغييرات تلقائيًا أثناء الكتابة.',
     'save_changes' => 'حفظ التغييرات',
     'saving' => 'جار الحفظ',
     'close' => 'إغلاق',

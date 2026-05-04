@@ -5,6 +5,8 @@ return [
     'open_notes' => 'My notes',
     'my_notes' => 'My Notes',
     'loading' => 'Loading',
+    'autosave_enabled' => 'Auto-save enabled',
+    'autosave_hint' => 'Your changes are saved automatically while you type.',
     'save_changes' => 'Save changes',
     'saving' => 'Saving',
     'close' => 'Close',
