@@ -379,7 +379,7 @@ class QuickNotes extends Component
 
         $layout = [
             'position_x' => max(12, $positionX),
-            'position_y' => max(72, $positionY),
+            'position_y' => max(12, $positionY),
             'width' => max(240, min(520, $width)),
             'height' => max(180, min(640, $height)),
         ];
@@ -428,17 +428,20 @@ class QuickNotes extends Component
      */
     private function persistOrder(): void
     {
-        foreach ($this->notes as $order => $note) {
-            if (! is_int($note['id'])) {
-                continue;
-            }
+        $this->notes = collect($this->notes)
+            ->values()
+            ->map(function (array $note, int $order): array {
+                if (! is_int($note['id'])) {
+                    return array_merge($note, ['order' => $order]);
+                }
 
-            $this->user()->filamentQuickNotes()
-                ->where('id', $note['id'])
-                ->update(['order' => $order]);
-        }
+                $this->user()->filamentQuickNotes()
+                    ->where('id', $note['id'])
+                    ->update(['order' => $order]);
 
-        $this->loadNotes();
+                return array_merge($note, ['order' => $order]);
+            })
+            ->toArray();
     }
 
     /**

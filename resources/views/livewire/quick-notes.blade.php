@@ -106,7 +106,6 @@
                 border-radius: 18px;
                 box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
                 overflow: hidden;
-                resize: both;
                 border: 1px solid rgba(255, 255, 255, 0.24);
                 backdrop-filter: blur(4px);
                 will-change: left, top, width, height;
@@ -220,9 +219,88 @@
                 opacity: 0.68;
             }
 
+            .fqn-sticky-handle {
+                position: absolute;
+                z-index: 3;
+                pointer-events: auto;
+                padding: 0;
+                margin: 0;
+                border: none;
+                background: transparent;
+                appearance: none;
+            }
+
+            .fqn-sticky-handle.top,
+            .fqn-sticky-handle.bottom {
+                left: 18px;
+                right: 18px;
+                height: 14px;
+                cursor: ns-resize;
+            }
+
+            .fqn-sticky-handle.left,
+            .fqn-sticky-handle.right {
+                top: 18px;
+                bottom: 18px;
+                width: 14px;
+                cursor: ew-resize;
+            }
+
+            .fqn-sticky-handle.top {
+                top: 0;
+            }
+
+            .fqn-sticky-handle.bottom {
+                bottom: 0;
+            }
+
+            .fqn-sticky-handle.left {
+                left: 0;
+            }
+
+            .fqn-sticky-handle.right {
+                right: 0;
+            }
+
+            .fqn-sticky-handle.top-left,
+            .fqn-sticky-handle.top-right,
+            .fqn-sticky-handle.bottom-left,
+            .fqn-sticky-handle.bottom-right {
+                width: 16px;
+                height: 16px;
+            }
+
+            .fqn-sticky-handle.top-left {
+                top: 0;
+                left: 0;
+                cursor: nwse-resize;
+            }
+
+            .fqn-sticky-handle.top-right {
+                top: 0;
+                right: 0;
+                cursor: nesw-resize;
+            }
+
+            .fqn-sticky-handle.bottom-left {
+                bottom: 0;
+                left: 0;
+                cursor: nesw-resize;
+            }
+
+            .fqn-sticky-handle.bottom-right {
+                bottom: 0;
+                right: 0;
+                cursor: nwse-resize;
+            }
+
+            body.fqn-note-interacting,
+            body.fqn-note-interacting * {
+                user-select: none !important;
+            }
+
             body.fqn-dragging-note,
             body.fqn-dragging-note * {
-                user-select: none !important;
                 cursor: grabbing !important;
             }
         </style>
@@ -235,35 +313,35 @@
                     width: Number(config.width ?? 300),
                     height: Number(config.height ?? 230),
                     dragging: false,
+                    resizing: false,
+                    resizeDirection: '',
                     pointerOffsetX: 0,
                     pointerOffsetY: 0,
+                    pointerStartX: 0,
+                    pointerStartY: 0,
+                    startWidth: 0,
+                    startHeight: 0,
+                    startLeft: 0,
+                    startTop: 0,
                     saveTimer: null,
-                    resizeObserver: null,
+                    viewportPadding: 12,
+
+                    storageKey() {
+                        return `filament-quick-notes:sticky:${window.location.host}:${this.noteId}`;
+                    },
 
                     init() {
+                        this.restoreLayout();
+
                         this.$nextTick(() => {
-                            this.width = this.normalizeWidth(this.$el.offsetWidth || this.width);
-                            this.height = this.normalizeHeight(this.$el.offsetHeight || this.height);
+                            this.width = this.normalizeWidth(this.width || this.$el.offsetWidth || 300);
+                            this.height = this.normalizeHeight(this.height || this.$el.offsetHeight || 230);
                             this.clampToViewport();
-
-                            this.resizeObserver = new ResizeObserver(() => {
-                                const nextWidth = this.normalizeWidth(this.$el.offsetWidth || this.width);
-                                const nextHeight = this.normalizeHeight(this.$el.offsetHeight || this.height);
-
-                                if (nextWidth === this.width && nextHeight === this.height) {
-                                    return;
-                                }
-
-                                this.width = nextWidth;
-                                this.height = nextHeight;
-                                this.clampToViewport();
-                                this.queuePersist();
-                            });
-
-                            this.resizeObserver.observe(this.$el);
+                            this.rememberLayout();
 
                             window.addEventListener('resize', () => {
                                 this.clampToViewport();
+                                this.rememberLayout();
                             }, { passive: true });
                         });
                     },
@@ -278,30 +356,89 @@
                         this.$el.classList.add('is-dragging');
                         this.pointerOffsetX = event.clientX - this.x;
                         this.pointerOffsetY = event.clientY - this.y;
-                        document.body.classList.add('fqn-dragging-note');
+                        document.body.classList.add('fqn-note-interacting', 'fqn-dragging-note');
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        event.preventDefault();
+                        event.stopPropagation();
+                    },
+
+                    startResize(direction, event) {
+                        clearTimeout(this.saveTimer);
+                        this.resizing = true;
+                        this.resizeDirection = direction;
+                        this.$el.classList.add('is-dragging');
+                        this.pointerStartX = event.clientX;
+                        this.pointerStartY = event.clientY;
+                        this.startWidth = this.width;
+                        this.startHeight = this.height;
+                        this.startLeft = this.x;
+                        this.startTop = this.y;
+                        document.body.classList.add('fqn-note-interacting');
                         event.currentTarget.setPointerCapture?.(event.pointerId);
                         event.preventDefault();
                         event.stopPropagation();
                     },
 
                     move(event) {
-                        if (! this.dragging) {
+                        if (! this.dragging && ! this.resizing) {
                             return;
                         }
 
-                        this.x = Math.round(event.clientX - this.pointerOffsetX);
-                        this.y = Math.round(event.clientY - this.pointerOffsetY);
+                        if (this.dragging) {
+                            this.x = event.clientX - this.pointerOffsetX;
+                            this.y = event.clientY - this.pointerOffsetY;
+                            this.clampToViewport();
+                            return;
+                        }
+
+                        this.resize(event);
+                    },
+
+                    resize(event) {
+                        const dx = event.clientX - this.pointerStartX;
+                        const dy = event.clientY - this.pointerStartY;
+
+                        let nextWidth = this.startWidth;
+                        let nextHeight = this.startHeight;
+                        let nextLeft = this.startLeft;
+                        let nextTop = this.startTop;
+
+                        if (this.resizeDirection.includes('right')) {
+                            nextWidth = this.normalizeWidth(this.startWidth + dx);
+                        }
+
+                        if (this.resizeDirection.includes('left')) {
+                            nextWidth = this.normalizeWidth(this.startWidth - dx);
+                            nextLeft = this.startLeft + (this.startWidth - nextWidth);
+                        }
+
+                        if (this.resizeDirection.includes('bottom')) {
+                            nextHeight = this.normalizeHeight(this.startHeight + dy);
+                        }
+
+                        if (this.resizeDirection.includes('top')) {
+                            nextHeight = this.normalizeHeight(this.startHeight - dy);
+                            nextTop = this.startTop + (this.startHeight - nextHeight);
+                        }
+
+                        this.width = nextWidth;
+                        this.height = nextHeight;
+                        this.x = nextLeft;
+                        this.y = nextTop;
                         this.clampToViewport();
                     },
 
                     stop() {
-                        if (! this.dragging) {
+                        if (! this.dragging && ! this.resizing) {
                             return;
                         }
 
                         this.dragging = false;
+                        this.resizing = false;
+                        this.resizeDirection = '';
                         this.$el.classList.remove('is-dragging');
-                        document.body.classList.remove('fqn-dragging-note');
+                        document.body.classList.remove('fqn-note-interacting', 'fqn-dragging-note');
+                        this.rememberLayout();
                         this.persist();
                     },
 
@@ -311,6 +448,7 @@
                     },
 
                     persist() {
+                        this.rememberLayout();
                         this.$wire.updatePinnedLayout(
                             this.noteId,
                             Math.round(this.x),
@@ -321,34 +459,75 @@
                     },
 
                     normalizeWidth(value) {
-                        const maxWidth = Math.max(240, window.innerWidth - 24);
+                        const maxWidth = Math.max(240, window.innerWidth - (this.viewportPadding * 2));
 
-                        return Math.min(Math.max(Math.round(value), 240), maxWidth);
+                        return Math.min(Math.max(value, 240), maxWidth);
                     },
 
                     normalizeHeight(value) {
-                        const maxHeight = Math.max(180, window.innerHeight - 96);
+                        const maxHeight = Math.max(180, window.innerHeight - (this.viewportPadding * 2));
 
-                        return Math.min(Math.max(Math.round(value), 180), maxHeight);
+                        return Math.min(Math.max(value, 180), maxHeight);
                     },
 
                     clampToViewport() {
                         this.width = this.normalizeWidth(this.width);
                         this.height = this.normalizeHeight(this.height);
 
-                        const maxX = Math.max(12, window.innerWidth - this.width - 12);
-                        const maxY = Math.max(72, window.innerHeight - this.height - 12);
+                        const maxX = Math.max(this.viewportPadding, window.innerWidth - this.width - this.viewportPadding);
+                        const maxY = Math.max(this.viewportPadding, window.innerHeight - this.height - this.viewportPadding);
 
-                        this.x = Math.min(Math.max(Math.round(this.x), 12), maxX);
-                        this.y = Math.min(Math.max(Math.round(this.y), 72), maxY);
+                        this.x = Math.min(Math.max(this.x, this.viewportPadding), maxX);
+                        this.y = Math.min(Math.max(this.y, this.viewportPadding), maxY);
+                    },
+
+                    restoreLayout() {
+                        try {
+                            const stored = window.localStorage.getItem(this.storageKey());
+
+                            if (! stored) {
+                                return;
+                            }
+
+                            const layout = JSON.parse(stored);
+
+                            if (Number.isFinite(layout.x)) {
+                                this.x = Number(layout.x);
+                            }
+
+                            if (Number.isFinite(layout.y)) {
+                                this.y = Number(layout.y);
+                            }
+
+                            if (Number.isFinite(layout.width)) {
+                                this.width = Number(layout.width);
+                            }
+
+                            if (Number.isFinite(layout.height)) {
+                                this.height = Number(layout.height);
+                            }
+                        } catch (_) {
+                        }
+                    },
+
+                    rememberLayout() {
+                        try {
+                            window.localStorage.setItem(this.storageKey(), JSON.stringify({
+                                x: Math.round(this.x),
+                                y: Math.round(this.y),
+                                width: Math.round(this.width),
+                                height: Math.round(this.height),
+                            }));
+                        } catch (_) {
+                        }
                     },
 
                     style() {
                         return {
-                            left: `${this.x}px`,
-                            top: `${this.y}px`,
-                            width: `${this.width}px`,
-                            height: `${this.height}px`,
+                            left: `${Math.round(this.x)}px`,
+                            top: `${Math.round(this.y)}px`,
+                            width: `${Math.round(this.width)}px`,
+                            height: `${Math.round(this.height)}px`,
                         };
                     },
                 };
@@ -381,6 +560,14 @@
                     x-bind:style="style()"
                     style="--fqn-sticky-bg: {{ $noteColor['hex'] }}; --fqn-sticky-text: {{ $noteColor['text'] }};"
                 >
+                    <button type="button" class="fqn-sticky-handle top" x-on:pointerdown="startResize('top', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle right" x-on:pointerdown="startResize('right', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle bottom" x-on:pointerdown="startResize('bottom', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle left" x-on:pointerdown="startResize('left', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle top-left" x-on:pointerdown="startResize('top-left', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle top-right" x-on:pointerdown="startResize('top-right', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle bottom-left" x-on:pointerdown="startResize('bottom-left', $event)"></button>
+                    <button type="button" class="fqn-sticky-handle bottom-right" x-on:pointerdown="startResize('bottom-right', $event)"></button>
                     <div class="fqn-sticky-header" x-on:pointerdown="startDrag($event)">
                         <div class="fqn-sticky-headline">
                             <span class="fqn-sticky-dot" aria-hidden="true"></span>
