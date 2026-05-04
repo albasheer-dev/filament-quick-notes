@@ -177,6 +177,141 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Floating sticky notes
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fqn-sticky-stage {
+    position: fixed;
+    inset: 0;
+    z-index: 9997;
+    pointer-events: none;
+}
+
+.fqn-sticky-note {
+    --fqn-sticky-bg: #F5C518;
+    --fqn-sticky-text: rgba(0, 0, 0, 0.72);
+    position: fixed;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 240px;
+    min-height: 180px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 96px);
+    background: var(--fqn-sticky-bg);
+    color: var(--fqn-sticky-text);
+    border-radius: 18px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+    overflow: hidden;
+    resize: both;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    backdrop-filter: blur(4px);
+}
+
+.fqn-sticky-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px 10px;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.18);
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.fqn-sticky-header:active {
+    cursor: grabbing;
+}
+
+.fqn-sticky-headline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.fqn-sticky-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.48);
+    flex-shrink: 0;
+}
+
+.fqn-sticky-title {
+    min-width: 0;
+    font-family: var(--fqn-hand);
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fqn-sticky-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.fqn-sticky-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.24);
+    font-family: var(--fqn-body);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.fqn-sticky-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(255, 255, 255, 0.22);
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .16s, background .16s;
+}
+
+.fqn-sticky-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.34);
+}
+
+.fqn-sticky-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px 16px 8px;
+    font-family: var(--fqn-hand);
+    font-size: 21px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.fqn-sticky-footer {
+    padding: 8px 14px 12px;
+    border-top: 1px dashed rgba(0, 0, 0, 0.14);
+    background: rgba(255, 255, 255, 0.12);
+    font-family: var(--fqn-body);
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.68;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Modal
    ═══════════════════════════════════════════════════════════════════════════ */
 .fqn-modal {
@@ -479,6 +614,15 @@
     color: rgba(255, 255, 255, 0.6);
 }
 
+.fqn-autosave-hint-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    List pane (right)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -621,8 +765,35 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding: 5px 12px 7px;
     background: rgba(30, 30, 50, 0.9);
+}
+
+.fqn-mini-pill {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.82);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-family: var(--fqn-body);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform .16s, background .16s, color .16s;
+    white-space: nowrap;
+}
+
+.fqn-mini-pill:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.fqn-mini-pill.active {
+    background: rgba(245, 197, 24, 0.18);
+    color: #fcd34d;
+    border-color: rgba(245, 197, 24, 0.22);
 }
 
 .fqn-order-btns {

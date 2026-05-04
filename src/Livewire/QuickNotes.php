@@ -104,13 +104,29 @@ class QuickNotes extends Component
         $this->notes = $this->user()
             ->filamentQuickNotes()
             ->orderBy('order')
-            ->get(['id', 'title', 'content', 'color', 'order'])
+            ->get([
+                'id',
+                'title',
+                'content',
+                'color',
+                'order',
+                'is_pinned',
+                'position_x',
+                'position_y',
+                'width',
+                'height',
+            ])
             ->map(fn($n) => [
                 'id' => $n->id,
                 'title' => $n->title,
                 'content' => $n->content,
                 'color' => $n->color,
-                'order' => $n->order
+                'order' => $n->order,
+                'is_pinned' => (bool) $n->is_pinned,
+                'position_x' => $n->position_x,
+                'position_y' => $n->position_y,
+                'width' => $n->width,
+                'height' => $n->height,
             ])
             ->values()
             ->toArray();
@@ -141,6 +157,7 @@ class QuickNotes extends Component
             'content' => null,
             'color' => 'yellow',
             'order' => 0,
+            'is_pinned' => false,
         ]);
 
         $this->loadNotes();
@@ -281,6 +298,101 @@ class QuickNotes extends Component
     }
 
     /**
+     * Pin a note to the viewport so it stays visible across pages.
+     *
+     * @param int|string $id
+     *
+     * @return void
+     */
+    public function pinNote(int|string $id): void
+    {
+        if (! is_int($id)) {
+            return;
+        }
+
+        /** @var FilamentQuickNote|null $note */
+        $note = $this->user()->filamentQuickNotes()->find($id);
+
+        if (! $note) {
+            return;
+        }
+
+        $layout = $this->defaultPinnedLayout($id, [
+            'position_x' => $note->position_x,
+            'position_y' => $note->position_y,
+            'width' => $note->width,
+            'height' => $note->height,
+        ]);
+
+        $this->user()->filamentQuickNotes()
+            ->where('id', $id)
+            ->update(array_merge($layout, ['is_pinned' => true]));
+
+        $this->syncNote($id, array_merge($layout, ['is_pinned' => true]));
+
+        $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_pinned'));
+    }
+
+    /**
+     * Remove a note from the fixed viewport list.
+     *
+     * @param int|string $id
+     *
+     * @return void
+     */
+    public function unpinNote(int|string $id): void
+    {
+        if (! is_int($id)) {
+            return;
+        }
+
+        $this->user()->filamentQuickNotes()
+            ->where('id', $id)
+            ->update(['is_pinned' => false]);
+
+        $this->syncNote($id, ['is_pinned' => false]);
+
+        $this->dispatch('quick-notes-toast', message: __('filament-quick-notes::translations.note_unpinned'));
+    }
+
+    /**
+     * Persist the fixed note layout after dragging or resizing.
+     *
+     * @param int|string $id
+     * @param int $positionX
+     * @param int $positionY
+     * @param int $width
+     * @param int $height
+     *
+     * @return void
+     */
+    public function updatePinnedLayout(
+        int|string $id,
+        int $positionX,
+        int $positionY,
+        int $width,
+        int $height,
+    ): void {
+        if (! is_int($id)) {
+            return;
+        }
+
+        $layout = [
+            'position_x' => max(12, $positionX),
+            'position_y' => max(72, $positionY),
+            'width' => max(240, min(520, $width)),
+            'height' => max(180, min(640, $height)),
+        ];
+
+        $this->user()->filamentQuickNotes()
+            ->where('id', $id)
+            ->where('is_pinned', true)
+            ->update($layout);
+
+        $this->syncNote($id, $layout);
+    }
+
+    /**
      * Move a note up or down in the list.
      * 
      * @param int|string $id
@@ -327,6 +439,46 @@ class QuickNotes extends Component
         }
 
         $this->loadNotes();
+    }
+
+    /**
+     * @param int $noteId
+     * @param array<string, mixed> $attributes
+     *
+     * @return void
+     */
+    private function syncNote(int $noteId, array $attributes): void
+    {
+        $this->notes = collect($this->notes)
+            ->map(function (array $note) use ($noteId, $attributes): array {
+                if ($note['id'] !== $noteId) {
+                    return $note;
+                }
+
+                return array_merge($note, $attributes);
+            })
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * @param int $noteId
+     * @param array<string, mixed> $currentLayout
+     *
+     * @return array<string, int>
+     */
+    private function defaultPinnedLayout(int $noteId, array $currentLayout): array
+    {
+        $pinnedCount = collect($this->notes)
+            ->filter(fn (array $note): bool => $note['id'] !== $noteId && (bool) ($note['is_pinned'] ?? false))
+            ->count();
+
+        return [
+            'position_x' => $currentLayout['position_x'] ?? (24 + (($pinnedCount % 4) * 34)),
+            'position_y' => $currentLayout['position_y'] ?? (112 + (($pinnedCount % 5) * 28)),
+            'width' => $currentLayout['width'] ?? 300,
+            'height' => $currentLayout['height'] ?? 230,
+        ];
     }
 
     /**

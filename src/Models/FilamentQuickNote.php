@@ -17,6 +17,22 @@ class FilamentQuickNote extends Model
         'content',
         'color',
         'order',
+        'is_pinned',
+        'position_x',
+        'position_y',
+        'width',
+        'height',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'is_pinned' => 'boolean',
+        'position_x' => 'integer',
+        'position_y' => 'integer',
+        'width' => 'integer',
+        'height' => 'integer',
     ];
 
     public function __construct(array $attributes = [])

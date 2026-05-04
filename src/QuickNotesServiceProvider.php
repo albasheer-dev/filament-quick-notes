@@ -143,8 +143,13 @@ class QuickNotesServiceProvider extends PackageServiceProvider
      */
     protected function getMigrations(): array
     {
-        return [
-            'create_filament_quick_notes_table',
-        ];
+        $migrations = glob(__DIR__ . '/../database/migrations/*.php.stub') ?: [];
+
+        sort($migrations);
+
+        return array_map(
+            fn (string $migration): string => basename($migration, '.php.stub'),
+            $migrations,
+        );
     }
 }
