@@ -7,6 +7,8 @@
         confirmOpen: false,
         confirmNoteId: null,
         confirmNoteTitle: '',
+        dockActive: false,
+        dockCleanup: [],
 
         showToast(msg) {
             this.toastMsg = msg;
@@ -35,8 +37,42 @@
             this.cancelDelete();
         },
 
+        initDockLayout(active) {
+            this.dockActive = Boolean(active);
+            this.applyDockLayout();
+            this.registerDockLayoutListeners();
+        },
+
         toggleDockLayout(active) {
-            document.body.classList.toggle('fqn-has-dock', active);
+            this.dockActive = Boolean(active);
+            this.applyDockLayout();
+        },
+
+        applyDockLayout() {
+            document.documentElement.classList.toggle('fqn-has-dock', this.dockActive);
+            document.body?.classList.toggle('fqn-has-dock', this.dockActive);
+        },
+
+        registerDockLayoutListeners() {
+            if (this.dockCleanup.length) {
+                return;
+            }
+
+            const refresh = () => {
+                this.$nextTick(() => this.applyDockLayout());
+                requestAnimationFrame(() => this.applyDockLayout());
+                setTimeout(() => this.applyDockLayout(), 80);
+            };
+
+            ['livewire:navigate', 'livewire:navigated', 'filament:navigated'].forEach((eventName) => {
+                document.addEventListener(eventName, refresh);
+                this.dockCleanup.push(() => document.removeEventListener(eventName, refresh));
+            });
+        },
+
+        destroy() {
+            this.dockCleanup.forEach((cleanup) => cleanup());
+            this.dockCleanup = [];
         }
     }"
     x-on:quick-notes-toast.window="showToast($event.detail.message)"
@@ -57,19 +93,23 @@
                 --fqn-dock-width: 22rem;
             }
 
+            html.fqn-has-dock .fi-main-ctn,
             body.fqn-has-dock .fi-main-ctn {
-                width: calc(100vw - var(--fqn-dock-width) - 1rem) !important;
-                max-width: calc(100vw - var(--fqn-dock-width) - 1rem) !important;
-                margin-left: calc(var(--fqn-dock-width) + 1rem);
-                transition: width .22s ease, margin-left .22s ease;
+                width: calc(100vw - var(--fqn-dock-width)) !important;
+                max-width: calc(100vw - var(--fqn-dock-width)) !important;
+                margin-left: var(--fqn-dock-width);
+                transition: none !important;
             }
 
+            html.fqn-has-dock .fi-topbar nav,
+            html.fqn-has-dock .fi-main,
             body.fqn-has-dock .fi-topbar nav,
             body.fqn-has-dock .fi-main {
-                transition: width .22s ease, margin-left .22s ease;
+                transition: none !important;
             }
 
             @media (max-width: 1279px) {
+                html.fqn-has-dock .fi-main-ctn,
                 body.fqn-has-dock .fi-main-ctn {
                     width: 100vw !important;
                     max-width: 100vw !important;
@@ -684,7 +724,7 @@
         </script>
     @endonce
 
-    <div x-init="toggleDockLayout({{ count($dockedNotes) > 0 ? 'true' : 'false' }})" x-effect="toggleDockLayout({{ count($dockedNotes) > 0 ? 'true' : 'false' }})"></div>
+    <div x-init="initDockLayout({{ count($dockedNotes) > 0 ? 'true' : 'false' }})" x-effect="toggleDockLayout({{ count($dockedNotes) > 0 ? 'true' : 'false' }})"></div>
 
     @if (count($dockedNotes))
         <aside class="fqn-dock-rail" aria-label="{{ __('filament-quick-notes::translations.docked_notes') }}">
